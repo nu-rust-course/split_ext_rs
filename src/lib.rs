@@ -16,7 +16,7 @@ pub trait IntoSplitExt: ops::Deref<Target = str> + StableDeref + Sized {
         -> IntoSplitWhitespace<Self> {
 
         IntoSplitWhitespace {
-            inner: inner::Whitespace::new(self, |s| s.split_whitespace())
+            inner: inner::Whitespace::new(self, str::split_whitespace),
         }
     }
 
@@ -154,6 +154,7 @@ mod regex {
 }
 
 rental! {
+    #[allow(clippy::useless_transmute)]
     mod inner {
         use std::str;
         use super::{IntoSplitExt, regex};
@@ -179,27 +180,39 @@ rental! {
     }
 }
 
-#[derive(Debug)]
-pub struct IntoSplitWhitespace<S>
-where
-    S: IntoSplitExt {
+impl<S: IntoSplitExt> inner::Whitespace<S> {
+    fn next_map<R, F: FnOnce(&str) -> R>(&mut self, fun: F) -> Option<R> {
+        self.rent_mut(|iter| iter.next().map(fun))
+    }
+}
 
-    inner: inner::Whitespace<S>
+impl<S: IntoSplitExt> inner::Regex<S> {
+    fn next_map<R, F: FnOnce(&str) -> R>(&mut self, fun: F) -> Option<R> {
+        self.rent_mut(|iter| iter.next().map(fun))
+    }
+}
+
+impl<'a, S: IntoSplitExt> inner::RegexRef<'a, S> {
+    fn next_map<R: 'a, F: FnOnce(&str) -> R>(&mut self, fun: F) -> Option<R> {
+        self.rent_mut(|iter| iter.next().map(fun))
+    }
+}
+
+#[derive(Debug)]
+pub struct IntoSplitWhitespace<S: IntoSplitExt> {
+    inner: inner::Whitespace<S>,
 }
 
 impl<S: IntoSplitExt> Iterator for IntoSplitWhitespace<S> {
     type Item = String;
 
     fn next(&mut self) -> Option<Self::Item> {
-        self.inner.rent_mut(|iter| iter.next().map(str::to_owned))
+        self.inner.next_map(str::to_owned)
     }
 }
 
 #[derive(Debug)]
-pub struct IntoSplitWhitespaceMap<S, F>
-where
-    S: IntoSplitExt, {
-
+pub struct IntoSplitWhitespaceMap<S: IntoSplitExt, F> {
     inner: inner::Whitespace<S>,
     fun:   F,
 }
@@ -212,8 +225,7 @@ where
     type Item = R;
 
     fn next(&mut self) -> Option<Self::Item> {
-        let fun = &mut self.fun;
-        self.inner.rent_mut(|iter| iter.next().map(fun))
+        self.inner.next_map(&mut self.fun)
     }
 }
 
@@ -243,9 +255,8 @@ where
                 return Some(result);
             }
 
-            let fun = &mut self.fun;
             self.rest = self.inner
-                .rent_mut(|iter| iter.next().map(fun))
+                .next_map(&mut self.fun)
                 .map(I::into_iter);
         }
 
@@ -321,7 +332,7 @@ mod regex_only {
         type Item = String;
 
         fn next(&mut self) -> Option<Self::Item> {
-            self.inner.rent_mut(|iter| iter.next().map(str::to_owned))
+            self.inner.next_map(str::to_owned)
         }
     }
 
@@ -329,7 +340,7 @@ mod regex_only {
         type Item = String;
 
         fn next(&mut self) -> Option<Self::Item> {
-            self.inner.rent_mut(|iter| iter.next().map(str::to_owned))
+            self.inner.next_map(str::to_owned)
         }
     }
 
@@ -341,8 +352,7 @@ mod regex_only {
         type Item = R;
 
         fn next(&mut self) -> Option<Self::Item> {
-            let fun = &mut self.fun;
-            self.inner.rent_mut(|iter| iter.next().map(fun))
+            self.inner.next_map(&mut self.fun)
         }
     }
 
@@ -354,8 +364,7 @@ mod regex_only {
         type Item = R;
 
         fn next(&mut self) -> Option<Self::Item> {
-            let fun = &mut self.fun;
-            self.inner.rent_mut(|iter| iter.next().map(fun))
+            self.inner.next_map(&mut self.fun)
         }
     }
 
@@ -373,10 +382,9 @@ mod regex_only {
                     return Some(result);
                 }
 
-                let fun = &mut self.fun;
                 self.rest = self.inner
-                                .rent_mut(|iter| iter.next().map(fun))
-                                .map(I::into_iter);
+                    .next_map(&mut self.fun)
+                    .map(I::into_iter);
             }
 
             None
@@ -397,9 +405,8 @@ mod regex_only {
                     return Some(result);
                 }
 
-                let fun = &mut self.fun;
                 self.rest = self.inner
-                                .rent_mut(|iter| iter.next().map(fun))
+                                .next_map(&mut self.fun)
                                 .map(I::into_iter);
             }
 
