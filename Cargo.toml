@@ -1,6 +1,6 @@
 [package]
 name = "split_ext"
-version = "0.1.1-alpha.0"
+version = "0.1.1"
 authors = ["Jesse A. Tov <jesse.@cs.northwestern.edu>"]
 description = "Extension traits for splitting"
 repository = "https://github.com/tov/split_ext_rs"

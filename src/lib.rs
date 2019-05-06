@@ -1,4 +1,4 @@
-#![doc(html_root_url = "https://docs.rs/split_ext/0.1.0")]
+#![doc(html_root_url = "https://docs.rs/split_ext/0.1.1")]
 //! Extension traits for splitting.
 //!
 //! Right now the focus is on packaging together an owned string and
