@@ -1,5 +1,10 @@
-/// Extension traits for packaging together an owned object and
-/// an iterator that borrows from the object.
+#![doc(html_root_url = "https://docs.rs/split_ext/0.1.0")]
+//! Extension traits for splitting.
+//!
+//! Right now the focus is on packaging together an owned string and
+//! an iterator that borrows from the string to split it.
+//!
+//! This is an initial, work-in-progress release.
 
 // Still needed on 2018 edition for rental crate:
 #[macro_use]
@@ -10,6 +15,8 @@ use std::ops;
 use rental::rental;
 use stable_deref_trait::StableDeref;
 
+/// Trait for owning-splitter methods. These methods work on `String`,
+/// `Box<[str]>`, `Rc<[str]>`, etc.
 pub trait IntoSplitExt: ops::Deref<Target = str> + StableDeref + Sized {
     fn into_split_whitespace(
         self)
@@ -413,61 +420,96 @@ mod regex_only {
             None
         }
     }
-}
 
-#[cfg(all(test, feature = "regex"))]
-mod tests {
-    use super::*;
-    use std::io::{Read, BufRead, BufReader};
-    use std::iter::FromIterator;
-    use lazy_static::lazy_static;
+    #[cfg(test)]
+    mod tests {
+        use super::*;
+        use std::io::{Read, BufRead, BufReader};
+        use lazy_static::lazy_static;
 
-    #[test]
-    fn three_words() {
-        assert_words(
-            "one two three",
-            &["one", "two", "three"]
-        );
-    }
+        #[test]
+        fn three_words() {
+            assert_words(
+                "one two three",
+                &["one", "two", "three"]
+            );
+        }
 
-    #[test]
-    fn with_punctuation() {
-        assert_words(
-            "one--two-two /three",
-            &["one", "two-two", "three"]
-        );
-    }
+        #[test]
+        fn with_punctuation() {
+            assert_words(
+                "one--two-two /three",
+                &["one", "two-two", "three"]
+            );
+        }
 
-    #[test]
-    fn multiple_lines() {
-        assert_words(
-            concat![
+        #[test]
+        fn multiple_lines() {
+            assert_words(
+                concat![
                 "first line\n",
                 "\n",
                 "above line was blank!\n",
             ],
-            &["first", "line", "above", "line", "was", "blank!"]
-        );
-    }
+                &["first", "line", "above", "line", "was", "blank!"]
+            );
+        }
 
-    fn assert_words(input: &str, expected: &[&str]) {
-        assert_eq!( Vec::from_iter(words(input.as_bytes())),
-                    Vec::from_iter(expected.iter().map(ToString::to_string)) );
-    }
+        fn assert_words(input: &str, expected: &[&str]) {
+            assert_eq!( words(input.as_bytes()).collect::<Vec<_>>(),
+                        ownv(expected) );
+        }
 
 
-    fn words(reader: impl Read) -> impl Iterator<Item = String> {
-        lazy_static! {
+        fn words(reader: impl Read) -> impl Iterator<Item = String> {
+            lazy_static! {
             static ref RE: regex::Regex =
                 regex::Regex::new("(?:--|/|[[:space:]])+").unwrap();
         }
-        
-        BufReader::new(reader).lines()
-            .flat_map(|s| s.unwrap()
-                .into_split_regex_ref_map(&RE, trim_and_lowercase))
-    }
 
-    fn trim_and_lowercase(word: &str) -> String {
-        word.trim().to_lowercase()
+            BufReader::new(reader).lines()
+                                  .flat_map(|s| s.unwrap()
+                                                 .into_split_regex_ref_map(&RE, trim_and_lowercase))
+        }
+
+        fn trim_and_lowercase(word: &str) -> String {
+            word.trim().to_lowercase()
+        }
     }
 }
+
+#[cfg(test)]
+mod tests {
+    use std::rc::Rc;
+    use super::*;
+
+    #[test]
+    fn split_boxed_str() {
+        let s: Box<str> = "hello this is my string".into();
+
+        assert_eq!(
+            s.into_split_whitespace().collect::<Vec<_>>(),
+            ownv(&["hello", "this", "is", "my", "string"])
+        )
+    }
+
+    #[test]
+    fn split_rc_str() {
+        let s: Rc<str> = "hello this is my string".into();
+
+        assert_eq!(
+            s.into_split_whitespace().collect::<Vec<_>>(),
+            ownv(&["hello", "this", "is", "my", "string"])
+        )
+    }
+}
+
+#[cfg(test)]
+fn ownv<'a, T, I>(seq: I) -> Vec<T::Owned>
+where T: ToOwned + ?Sized + 'a,
+      I: IntoIterator<Item = &'a T>, {
+    
+    seq.into_iter().map(T::to_owned).collect()
+}
+
+
