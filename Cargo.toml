@@ -1,7 +1,17 @@
 [package]
 name = "split_ext"
 version = "0.1.0"
-authors = ["Jesse A. Tov <jesse.tov@gmail.com>"]
+authors = ["Jesse A. Tov <jesse.@cs.northwestern.edu>"]
 edition = "2018"
 
+[features]
+default = ["regex"]
+
 [dependencies]
+regex = { version = "1.1", optional = true }
+rental = "0.5.3"
+stable_deref_trait = "1.1"
+
+[dev-dependencies]
+lazy_static = "1.3"
+
