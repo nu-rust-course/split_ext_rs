@@ -1,4 +1,4 @@
-# split_ext: extension traits for splitting
+# split_ext: extension methods for splitting
 
 [![Build Status](https://travis-ci.org/tov/split_ext_rs.svg?branch=master)](https://travis-ci.org/tov/split_ext_rs)
 [![Crates.io](https://img.shields.io/crates/v/split_ext.svg?maxAge=2592000)](https://crates.io/crates/split_ext)
