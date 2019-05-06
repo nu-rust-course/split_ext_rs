@@ -8,15 +8,15 @@ pub fn char_boundaries<'a>(s: &'a str)
 }
 
 pub struct Utf8Boundaries<'a> {
-    slice:        Option<&'a [u8]>,
+    bytes:        Option<&'a [u8]>,
     left_offset:  usize,
     right_offset: usize,
 }
 
 impl<'a> Utf8Boundaries<'a> {
-    pub fn new(slice: &'a [u8]) -> Utf8Boundaries<'a> {
+    pub fn new(bytes: &'a [u8]) -> Utf8Boundaries<'a> {
         Utf8Boundaries {
-            slice: Some(slice),
+            bytes: Some(bytes),
             left_offset: 0,
             right_offset: 0,
         }
@@ -27,12 +27,12 @@ impl<'a> Iterator for Utf8Boundaries<'a> {
     type Item = Result<usize, str::Utf8Error>;
 
     fn next(&mut self) -> Option<Self::Item> {
-        let slice = self.slice.take()?;
+        let bytes = self.bytes.take()?;
 
-        u8_find_first(slice).map(|option|
+        u8_find_first(bytes).map(|option|
             option.map(|index| {
                 self.left_offset += index;
-                self.slice = Some(&slice[index..]);
+                self.bytes = Some(&bytes[index..]);
                 self.left_offset
             }))
     }
@@ -40,30 +40,30 @@ impl<'a> Iterator for Utf8Boundaries<'a> {
 
 impl<'a> DoubleEndedIterator for Utf8Boundaries<'a> {
     fn next_back(&mut self) -> Option<Self::Item> {
-        let slice = self.slice.take()?;
+        let bytes = self.bytes.take()?;
 
-        u8_find_last(slice).map(|option|
+        u8_find_last(bytes).map(|option|
             option.map(|index| {
                 self.right_offset += index;
-                self.slice = Some(&slice[.. slice.len() - index]);
+                self.bytes = Some(&bytes[.. bytes.len() - index]);
                 self.right_offset
             }))
     }
 }
 
-fn u8_find_first(slice: &[u8]) -> Option<Result<usize, str::Utf8Error>> {
-    let attempt = u8_find_first_helper(slice)?;
+fn u8_find_first(bytes: &[u8]) -> Option<Result<usize, str::Utf8Error>> {
+    let attempt = u8_find_first_helper(bytes)?;
 
     if let Ok(i) = attempt {
         return Some(Ok(i));
     }
 
     for i in 1 ..= 4 {
-        if i > slice.len() {
+        if i > bytes.len() {
             break;
         }
 
-        if let Ok(i) = u8_find_first_helper(&slice[..i])? {
+        if let Ok(i) = u8_find_first_helper(&bytes[..i])? {
             return Some(Ok(i));
         }
     }
@@ -71,19 +71,19 @@ fn u8_find_first(slice: &[u8]) -> Option<Result<usize, str::Utf8Error>> {
     Some(attempt)
 }
 
-fn u8_find_last(slice: &[u8]) -> Option<Result<usize, str::Utf8Error>> {
-    let attempt = u8_find_last_helper(slice)?;
+fn u8_find_last(bytes: &[u8]) -> Option<Result<usize, str::Utf8Error>> {
+    let attempt = u8_find_last_helper(bytes)?;
 
     if let Ok(i) = attempt {
         return Some(Ok(i));
     }
 
     for i in 1 ..= 4 {
-        if i > slice.len() {
+        if i > bytes.len() {
             break;
         }
 
-        if let Ok(i) = u8_find_first_helper(&slice[i..])? {
+        if let Ok(i) = u8_find_first_helper(&bytes[i..])? {
             return Some(Ok(i));
         }
     }
@@ -91,11 +91,17 @@ fn u8_find_last(slice: &[u8]) -> Option<Result<usize, str::Utf8Error>> {
     Some(attempt)
 }
 
-fn u8_find_first_helper(slice: &[u8]) -> Option<Result<usize, str::Utf8Error>> {
-    str::from_utf8(slice).map(|s| char_boundaries(s).nth(1)).transpose()
+fn u8_find_first_helper(bytes: &[u8]) -> Option<Result<usize, str::Utf8Error>> {
+    transpose(str::from_utf8(bytes).map(|s| char_boundaries(s).nth(1)))
 }
 
-fn u8_find_last_helper(slice: &[u8]) -> Option<Result<usize, str::Utf8Error>> {
-    str::from_utf8(slice).map(|s| char_boundaries(s).rev().nth(1)).transpose()
+fn u8_find_last_helper(bytes: &[u8]) -> Option<Result<usize, str::Utf8Error>> {
+    transpose(str::from_utf8(bytes).map(|s| char_boundaries(s).rev().nth(1)))
 }
 
+fn transpose<T, E>(result: Result<Option<T>, E>) -> Option<Result<T, E>> {
+    match result {
+        Ok(o) => o.map(Ok),
+        Err(e) => Some(Err(e)),
+    }
+}
