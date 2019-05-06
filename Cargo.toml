@@ -2,6 +2,9 @@
 name = "split_ext"
 version = "0.1.0"
 authors = ["Jesse A. Tov <jesse.@cs.northwestern.edu>"]
+description = "Extension traits for splitting"
+repository = "https://github.com/tov/split_ext_rs"
+license-file = "LICENSE.md"
 edition = "2018"
 
 [features]
