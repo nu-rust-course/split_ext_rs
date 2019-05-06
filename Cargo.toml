@@ -8,12 +8,19 @@ license-file = "LICENSE.md"
 edition = "2018"
 
 [features]
-default = ["regex"]
+default = ["regex", "into"]
+
+# Methods for embedding an owned string in an iterator over
+# chunks of it.
+into = ["rental", "stable_deref_trait"]
 
 [dependencies]
+# Support splitting using regular expressions:
 regex = { version = "1.1", optional = true }
-rental = "0.5.3"
-stable_deref_trait = "1.1"
+
+# Included in "into" feature:
+rental = { version = "0.5.3", optional = true }
+stable_deref_trait = { version = "1.1", optional = true }
 
 [dev-dependencies]
 lazy_static = "1.3"
