@@ -16,7 +16,7 @@ use rental::rental;
 use stable_deref_trait::StableDeref;
 
 /// Trait for owning-splitter methods. These methods work on `String`,
-/// `Box<[str]>`, `Rc<[str]>`, etc.
+/// `Box<str>`, `Rc<str>`, etc.
 pub trait IntoSplitExt: ops::Deref<Target = str> + StableDeref + Sized {
     fn into_split_whitespace(
         self)

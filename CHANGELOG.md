@@ -10,4 +10,10 @@ The format is based on [Keep a Changelog] and this project adheres to
 
 ## [Unreleased]
 
+### Fixed
+  - Changed documentation to mention legit types `Box<str>` and `Rc<str>`
+    instead of nonsense types `Box<[str]>` and `Rc<[str]>`.
+
+## [0.1.0] - 06 May 2019
+
 Initial release.
