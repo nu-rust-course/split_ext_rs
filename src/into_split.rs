@@ -448,13 +448,13 @@ mod regex_only {
 
         fn words(reader: impl Read) -> impl Iterator<Item = String> {
             lazy_static! {
-            static ref RE: regex::Regex =
-                regex::Regex::new("(?:--|/|[[:space:]])+").unwrap();
-        }
+                static ref RE: regex::Regex =
+                    regex::Regex::new("(?:--|/|[[:space:]])+").unwrap();
+            }
 
             BufReader::new(reader).lines()
-                                  .flat_map(|s| s.unwrap()
-                                                 .into_split_regex_ref_map(&RE, trim_and_lowercase))
+                .flat_map(|s| s.unwrap()
+                    .into_split_regex_ref_map(&RE, trim_and_lowercase))
         }
 
         fn trim_and_lowercase(word: &str) -> String {
