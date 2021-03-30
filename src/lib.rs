@@ -24,3 +24,15 @@ mod into_split;
 #[cfg(feature = "into")]
 pub use into_split::*;
 
+#[cfg(feature = "regex")]
+mod re;
+#[cfg(feature = "regex")]
+pub use re::IntoRegex;
+
+// Dummy definitions for when `regex` is turned off.
+#[cfg(not(feature = "regex"))]
+mod re {
+    pub type Regex = ();
+    pub type Split<'r, 'b> = (&'r (), &'b ());
+}
+

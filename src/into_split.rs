@@ -1,11 +1,14 @@
-use std::ops;
+use std::fmt;
+use std::ops::Deref;
 
 use rental::rental;
 use stable_deref_trait::StableDeref;
 
+use super::re;
+
 /// Trait for owning-splitter methods. These methods work on `String`,
 /// `Box<str>`, `Rc<str>`, etc.
-pub trait IntoSplitIter: ops::Deref<Target = str> + StableDeref + Sized {
+pub trait IntoSplitIter: Deref<Target = str> + StableDeref + Sized {
     fn into_split_whitespace(self) -> IntoSplitWhitespace<Self> {
         IntoSplitWhitespace {
             inner: inner::Whitespace::new(self, str::split_whitespace),
@@ -41,17 +44,17 @@ pub trait IntoSplitIter: ops::Deref<Target = str> + StableDeref + Sized {
     }
 
     #[cfg(feature = "regex")]
-    fn into_split_regex(self, regex: regex::Regex) -> IntoSplitRegex<Self> {
+    fn into_split_regex(self, regex: re::Regex) -> IntoSplitRegex<Self> {
         IntoSplitRegex {
             inner: inner::Regex::new(
                 self,
                 move |_| Box::new(regex),
-                |r, s| regex::Split(r.split(s)))
+                |r, s| re::Split(r.split(s)))
         }
     }
 
     #[cfg(feature = "regex")]
-    fn into_split_regex_map<F, R>(self, regex: regex::Regex, fun: F)
+    fn into_split_regex_map<F, R>(self, regex: re::Regex, fun: F)
                                   -> IntoSplitRegexMap<Self, F>
     where
         F: FnMut(&str) -> R {
@@ -63,7 +66,7 @@ pub trait IntoSplitIter: ops::Deref<Target = str> + StableDeref + Sized {
     }
 
     #[cfg(feature = "regex")]
-    fn into_split_regex_and_then<F, I>(self, regex: regex::Regex, fun: F)
+    fn into_split_regex_and_then<F, I>(self, regex: re::Regex, fun: F)
                                        -> IntoSplitRegexAndThen<Self, F, I>
     where
         F: FnMut(&str) -> I,
@@ -77,16 +80,16 @@ pub trait IntoSplitIter: ops::Deref<Target = str> + StableDeref + Sized {
     }
 
     #[cfg(feature = "regex")]
-    fn into_split_regex_ref(self, regex: &regex::Regex) -> IntoSplitRegexRef<Self> {
+    fn into_split_regex_ref(self, regex: &re::Regex) -> IntoSplitRegexRef<Self> {
         IntoSplitRegexRef {
             inner: inner::RegexRef::new(
                 self,
-                move |s| regex::Split(regex.split(s)))
+                move |s| re::Split(regex.split(s)))
         }
     }
 
     #[cfg(feature = "regex")]
-    fn into_split_regex_ref_map<F, R>(self, regex: &regex::Regex, fun: F)
+    fn into_split_regex_ref_map<F, R>(self, regex: &re::Regex, fun: F)
                                       -> IntoSplitRegexRefMap<Self, F>
     where
         F: FnMut(&str) -> R {
@@ -98,7 +101,7 @@ pub trait IntoSplitIter: ops::Deref<Target = str> + StableDeref + Sized {
     }
 
     #[cfg(feature = "regex")]
-    fn into_split_regex_ref_and_then<F, I>(self, regex: &regex::Regex, fun: F)
+    fn into_split_regex_ref_and_then<F, I>(self, regex: &re::Regex, fun: F)
                                            -> IntoSplitRegexRefAndThen<Self, F, I>
     where
         F: FnMut(&str) -> I,
@@ -112,44 +115,39 @@ pub trait IntoSplitIter: ops::Deref<Target = str> + StableDeref + Sized {
     }
 }
 
-impl<T: ops::Deref<Target = str> + StableDeref + Sized> IntoSplitIter for T { }
+impl<T: Deref<Target = str> + StableDeref + Sized> IntoSplitIter for T { }
 
-#[cfg(feature = "regex")]
-mod regex {
-    use std::fmt;
+struct PhantomLifetime<'a, T> {
+    base: T,
+    _marker: std::marker::PhantomData<&'a ()>,
+}
 
-    pub type Regex = regex::Regex;
-
-    // Wrap `regex::Split` in order to impl `Debug` for it.
-    pub struct Split<'r, 'b>(pub regex::Split<'r, 'b>);
-
-    impl<'r, 'b> Iterator for Split<'r, 'b> {
-        type Item = &'b str;
-
-        fn next(&mut self) -> Option<Self::Item> {
-            self.0.next()
-        }
-    }
-
-    impl<'r, 'b> fmt::Debug for Split<'r, 'b> {
-        fn fmt(&self, f: &mut fmt::Formatter) -> fmt::Result {
-            write!(f, "regex::Split(...)")
-        }
+impl<T: fmt::Debug> fmt::Debug for PhantomLifetime<'_, T> {
+    fn fmt(&self, f: &mut fmt::Formatter) -> fmt::Result {
+        self.base.fmt(f)
     }
 }
 
-// Dummy definitions for when `regex` is turned off.
-#[cfg(not(feature = "regex"))]
-mod regex {
-    pub type Regex = ();
-    pub type Split<'r, 'b> = (&'r (), &'b ());
+impl<T> Deref for PhantomLifetime<'_, T>
+where
+    T: Deref {
+
+    type Target = T::Target;
+
+    fn deref(&self) -> &Self::Target {
+        self.base.deref()
+    }
 }
+
+unsafe impl<T> StableDeref for PhantomLifetime<'_, T>
+where
+    T: StableDeref { }
 
 rental! {
     #[allow(clippy::useless_transmute)]
     mod inner {
         use std::str;
-        use super::{IntoSplitIter, regex};
+        use super::{IntoSplitIter, PhantomLifetime, re};
 
         #[rental(debug)]
         pub struct Whitespace<S: IntoSplitIter> {
@@ -158,16 +156,27 @@ rental! {
         }
 
         #[rental(debug)]
+        pub (super) struct RegexInto<S: IntoSplitIter, R: super::StableDeref>
+        where
+//            R::Target: 'regex
+        {
+            base:     S,
+            #[target_ty = "R::Target"]
+            regex:    R,
+            splitter: re::Split<'regex, 'base>,
+        }
+
+        #[rental(debug)]
         pub struct Regex<S: IntoSplitIter> {
             base:     S,
-            regex:    Box<regex::Regex>,
-            splitter: regex::Split<'regex, 'base>,
+            regex:    Box<re::Regex>,
+            splitter: re::Split<'regex, 'base>,
         }
 
         #[rental(debug)]
         pub struct RegexRef<'r, S: IntoSplitIter> {
             base:     S,
-            splitter: regex::Split<'r, 'base>,
+            splitter: re::Split<'r, 'base>,
         }
     }
 }
@@ -448,8 +457,8 @@ mod regex_only {
 
         fn words(reader: impl Read) -> impl Iterator<Item = String> {
             lazy_static! {
-                static ref RE: regex::Regex =
-                    regex::Regex::new("(?:--|/|[[:space:]])+").unwrap();
+                static ref RE: re::Regex =
+                    re::Regex::new("(?:--|/|[[:space:]])+").unwrap();
             }
 
             BufReader::new(reader).lines()
